@@ -1,0 +1,22 @@
+
+# Node modules folder
+/node_modules/
+
+# Environment files containing sensitive information
+.env
+credentials.json
+
+# Logs
+*.log
+
+# Build output
+/dist
+/build
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Package lock files (if you use Yarn, replace with yarn.lock)
+package-lock.json
+
