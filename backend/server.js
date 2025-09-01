@@ -214,7 +214,7 @@ app.get('/api/recommendations', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT,'0.0.0.0', () => {
   console.log(`🚀 University Finder API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`📋 Make sure your .env file has all required Google credentials`);
