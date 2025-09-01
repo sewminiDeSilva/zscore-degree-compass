@@ -14,15 +14,22 @@ app.use(cors({
 app.use(express.json());
 
 // Google Sheets setup with service account
-const credentials = require('./credentials');
-const auth = new google.auth.JWT({
-  email: credentials.client_email,
-  key: credentials.private_key,
-  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+// const credentials = require('./credentials');
+// const auth = new google.auth.JWT({
+//   email: credentials.client_email,
+//   key: credentials.private_key,
+//   scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+// });
+
+const spreadsheetId = new GoogleSpreadsheet(process.env.SHEET_ID);
+await spreadsheetId.useServiceAccountAuth{
+  email: process.env.GOOGLE_CLIENT_EMAIL,
+  key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
+
 });
 
 const sheets = google.sheets({ version: 'v4', auth });
-const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+// const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
 // Helper function to get sheet name from subject stream
 const getSheetNameFromStream = (stream) => {
