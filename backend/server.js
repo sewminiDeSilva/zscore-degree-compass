@@ -22,7 +22,7 @@ app.use(express.json());
 // });
 
 const spreadsheetId = new GoogleSpreadsheet(process.env.SHEET_ID);
-await spreadsheetId.useServiceAccountAuth{
+await spreadsheetId.useServiceAccountAuth({
   email: process.env.GOOGLE_CLIENT_EMAIL,
   key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
 
@@ -61,7 +61,7 @@ app.get('/api/degree-programs', async (req, res) => {
       const range = `${sheetName}`;
 
       try {
-        const response = await sheets.spreadsheets.values.get({
+        const response = await sheets.spreadsheets.values.get(
           spreadsheetId,
           range,
         });
