@@ -13,24 +13,10 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Google Sheets setup with service account
-// const credentials = require('./credentials');
-// const auth = new google.auth.JWT({
-//   email: credentials.client_email,
-//   key: credentials.private_key,
-//   scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-// });
+let sheets ;
+let spreadsheetId= process.env.SHEET_ID;
 
-const spreadsheetId = new GoogleSpreadsheet(process.env.SHEET_ID);
-await spreadsheetId.useServiceAccountAuth({
-  email: process.env.GOOGLE_CLIENT_EMAIL,
-  key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
-
-});
-
-const sheets = google.sheets({ version: 'v4', auth });
-// const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-
+  
 // Helper function to get sheet name from subject stream
 const getSheetNameFromStream = (stream) => {
   const streamMap = {
@@ -220,9 +206,26 @@ app.get('/api/recommendations', async (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT,'0.0.0.0', () => {
-  console.log(`🚀 University Finder API running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`📋 Make sure your .env file has all required Google credentials`);
-});
+// Init function
+async function init() {
+  try {
+    const auth = new google.auth.JWT({
+      email: process.env.GOOGLE_CLIENT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    sheets = google.sheets({ version: 'v4', auth });
+    console.log("✅ Connected to Google Sheets");
+
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 University Finder API running on port ${PORT}`);
+      console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+    });
+  } catch (err) {
+    console.error("❌ Failed to initialize:", err.message);
+    process.exit(1);
+  }
+}
+
+init();
