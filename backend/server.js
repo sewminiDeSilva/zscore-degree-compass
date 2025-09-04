@@ -47,7 +47,7 @@ app.get('/api/degree-programs', async (req, res) => {
       const range = `${sheetName}`;
 
       try {
-        const response = await sheets.spreadsheets.values.get(
+        const response = await sheets.spreadsheets.values.get({
           spreadsheetId,
           range,
         });
