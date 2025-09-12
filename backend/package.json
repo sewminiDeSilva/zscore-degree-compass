@@ -2,6 +2,7 @@
 {
   "name": "university-finder-backend",
   "version": "1.0.0",
+  "type":"module",
   "description": "Backend API for University Degree Finder",
   "main": "server.js",
   "scripts": {
