@@ -122,10 +122,22 @@ app.get('/api/recommendations', async (req, res) => {
 
     console.log(`Fetching data for ${subjectStream} (${sheetName}) with Z-score ${studentZScore} in ${district}`);
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
-    });
+    // const response = await sheets.spreadsheets.values.get({
+    //   spreadsheetId,
+    //   range,
+    // });
+
+  async function getSpreadsheetValues() {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range,
+  });
+  return response;
+}
+
+getSpreadsheetValues().then(data => {
+  console.log(data);
+});
 
     const rows = response.data.values;
     if (!rows || rows.length < 2) {
