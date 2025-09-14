@@ -2,6 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { google } = require('googleapis');
+const { GoogleAuth } = require('google-auth-library');
+//const { GoogleSpreadsheet } =require('google-spreadsheet');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -11,14 +14,26 @@ app.use(cors({
 }));
 app.use(express.json());
 
-let sheets;
-const spreadsheetId = process.env.SHEET_ID;
+//Google Sheets setup with service account
+const credentials =  require('./credentials');
+
+const auth = new google.auth.JWT({
+  email: credentials.client_email,
+  key: credentials.private_key,
+  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+});
+
+const sheets = google.sheets({ version: 'v4', auth });
+const spreadsheetId = process.env.GOOGLE_SHEET_ID ;
+
 
 // Helper function to get sheet name from subject stream
 const getSheetNameFromStream = (stream) => {
   const streamMap = {
-    'Bio Science': 'BIO',
-    'Mathematics': 'Maths',
+    'Bio Science': 'BIO', 
+    'Mathamatics': 'Maths',
+    // 'Commerce': 'Commerce',
+    // 'Arts': 'Arts',
     'Technology': 'Tech'
   };
   return streamMap[stream] || stream;
@@ -26,8 +41,8 @@ const getSheetNameFromStream = (stream) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
+  res.json({ 
+    status: 'healthy', 
     message: 'University Finder API is running',
     timestamp: new Date().toISOString()
   });
@@ -37,26 +52,37 @@ app.get('/api/health', (req, res) => {
 app.get('/api/degree-programs', async (req, res) => {
   try {
     const allPrograms = [];
-    const streams = ['BIO', 'Maths', 'Tech'];
+    const streams = ['BIO','Maths','Tech'];
+    
     for (const sheetName of streams) {
+      const range = `${sheetName}`;
+      
       try {
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId,
-          range: sheetName,
+          range,
+      
         });
+
         const rows = response.data.values;
         if (!rows || rows.length < 2) continue;
+
         const headers = rows[0];
+     
+        
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           const district = row[0];
+
           for (let j = 1; j < headers.length; j++) {
             const cutoffStr = row[j];
             if (!cutoffStr || cutoffStr === 'NQC') continue;
+
             const header = headers[j];
             const match = header.match(/(.*)\((.*)\)/);
             const degreeName = match?.[1]?.trim() || header;
             const university = match?.[2]?.trim() || "Unknown";
+
             const program = {
               id: `${sheetName}-${i}-${j}`,
               degreeName,
@@ -64,10 +90,12 @@ app.get('/api/degree-programs', async (req, res) => {
               district,
               previousCutoff: parseFloat(cutoffStr),
               university,
+              // duration: 4,
               description: `${degreeName} at ${university}`,
-              subjectStreams: [sheetName],
+              subjectStreams: [sheetName], // Add this for compatibility
               type: 'undergraduate'
             };
+
             allPrograms.push(program);
           }
         }
@@ -75,10 +103,17 @@ app.get('/api/degree-programs', async (req, res) => {
         console.warn(`Failed to fetch data from sheet ${sheetName}:`, sheetError.message);
       }
     }
-    res.json({ success: true, data: allPrograms });
+
+    res.json({
+      success: true,
+      data: allPrograms
+    });
   } catch (error) {
     console.error('Error fetching degree programs:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch degree programs' });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch degree programs'
+    });
   }
 });
 
@@ -86,15 +121,17 @@ app.get('/api/degree-programs', async (req, res) => {
 app.get('/api/recommendations', async (req, res) => {
   try {
     const { subjectStream, zscore, district } = req.query;
+    
     if (!subjectStream || !zscore || !district) {
       return res.status(400).json({
         success: false,
         error: 'Missing required parameters: subjectStream, zscore, district'
       });
     }
+
     const studentZScore = parseFloat(zscore);
     const sheetName = getSheetNameFromStream(subjectStream);
-    const range = sheetName;
+    const range = `${sheetName}`;
 
     console.log(`Fetching data for ${subjectStream} (${sheetName}) with Z-score ${studentZScore} in ${district}`);
 
@@ -102,7 +139,7 @@ app.get('/api/recommendations', async (req, res) => {
       spreadsheetId,
       range,
     });
-
+  
     const rows = response.data.values;
     if (!rows || rows.length < 2) {
       return res.status(500).json({
@@ -111,24 +148,37 @@ app.get('/api/recommendations', async (req, res) => {
       });
     }
 
-    const headers = rows[0];
-    console.log(`Detected ${headers.length} columns`);
+  //   const headerRow2 = rows[1];
+  //   const headerRow3 =rows[2];
 
+  //   const headers =headerRow3.map((cell,i)=>{
+  //   if (cell) return cell;
+  // return headerRow2[i] || ""});
+
+const headers= rows[3];
+   console.log(`detected ${headers.length} column`);
     const recommendations = [];
     const allQualifyingPrograms = [];
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       const programDistrict = row[0];
-      for (let j = 1; j < Math.min(headers.length, row.length); j++) {
+
+      for (let j = 1; j < Math.min(headers.length,row.length); j++) {
         const cutoffStr = row[j];
+        
         if (!cutoffStr || cutoffStr === 'NQC') continue;
+
         const cutoff = parseFloat(cutoffStr);
-        if (cutoff > studentZScore) continue;
+        if (cutoff > studentZScore) continue; // Skip if student doesn't qualify
+
         const header = headers[j];
-        const match = header.match(/^(.+?)\s*\(([^)]+)\)$/);
+         console.log(header[j]);
+        const match = header.match (/^(.+?)\s*\(([^)]+)\)$/);
+        // (/^(.+?)\s*\(([^)]+)\)$/),
         const degreeName = match?.[1]?.trim() || header;
         const university = match?.[2]?.trim() || "Unknown";
+
         const program = {
           id: `${i}-${j}`,
           degreeName,
@@ -136,22 +186,27 @@ app.get('/api/recommendations', async (req, res) => {
           district: programDistrict,
           previousCutoff: cutoff,
           university,
+          // duration: 4,
           description: `${degreeName} at ${university}`,
-          subjectStreams: [subjectStream],
+          subjectStreams: [subjectStream], // Add for compatibility
           type: 'undergraduate'
         };
+
+        // Add to all qualifying programs
         allQualifyingPrograms.push(program);
+
+        // Add to main recommendations if in preferred district
         if (program.district?.trim().toLowerCase() === district.trim().toLowerCase()) {
           recommendations.push(program);
         }
       }
     }
 
-    // Nearby recommendations excluding preferred district
+    // Get nearby recommendations (excluding preferred district)
     const nearbyDistricts = ['Colombo', 'Gampaha', 'Kalutara', 'Kandy', 'Galle', 'Matara'];
-    const nearbyRecommendations = allQualifyingPrograms.filter(p =>
+    const nearbyRecommendations = allQualifyingPrograms.filter(p => 
       nearbyDistricts.includes(p.district) && p.district !== district
-    ).slice(0, 5);
+    ).slice(0, 5); // Limit to 5 nearby recommendations
 
     console.log(`Found ${recommendations.length} programs in ${district} and ${nearbyRecommendations.length} nearby programs`);
 
@@ -163,6 +218,7 @@ app.get('/api/recommendations', async (req, res) => {
         totalCount: recommendations.length + nearbyRecommendations.length
       }
     });
+
   } catch (error) {
     console.error('Error fetching recommendations:', error);
     res.status(500).json({
@@ -172,27 +228,9 @@ app.get('/api/recommendations', async (req, res) => {
   }
 });
 
-// Init function
-async function init() {
-  try {
-    if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-      throw new Error('Missing Google API credentials in environment variables');
-    }
-    const auth = new google.auth.JWT({
-      email: process.env.GOOGLE_CLIENT_EMAIL,
-     key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    sheets = google.sheets({ version: 'v4', auth });
-    console.log("✅ Connected to Google Sheets");
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 University Finder API running on port ${PORT}`);
-      console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-    });
-  } catch (err) {
-    console.error("❌ Failed to initialize:", err.message);
-    process.exit(1);
-  }
-}
-
-init();
+// Start server
+app.listen(PORT,'0.0.0.0',() => {
+  console.log(`🚀 University Finder API running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`📋 Make sure your .env file has all required Google credentials`);
+});
