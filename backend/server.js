@@ -2,10 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { google } = require('googleapis');
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Middleware
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173'
 }));
@@ -14,6 +14,7 @@ app.use(express.json());
 let sheets;
 const spreadsheetId = process.env.SHEET_ID;
 
+// Helper function to map stream names to sheets
 const getSheetNameFromStream = (stream) => {
   const streamMap = {
     'Bio Science': 'BIO',
@@ -23,6 +24,7 @@ const getSheetNameFromStream = (stream) => {
   return streamMap[stream] || stream;
 };
 
+// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -31,15 +33,17 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Get all degree programs
 app.get('/api/degree-programs', async (req, res) => {
   try {
     const allPrograms = [];
     const streams = ['BIO', 'Maths', 'Tech'];
     for (const sheetName of streams) {
+      const range = `${sheetName}`;
       try {
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId,
-          range: sheetName,
+          range,
         });
         const rows = response.data.values;
         if (!rows || rows.length < 2) continue;
@@ -78,27 +82,26 @@ app.get('/api/degree-programs', async (req, res) => {
   }
 });
 
+// Get recommendations based on student data
 app.get('/api/recommendations', async (req, res) => {
   try {
     const { subjectStream, zscore, district } = req.query;
     if (!subjectStream || !zscore || !district) {
-      return res.status(400).json({ success: false, error: 'Missing required parameters' });
+      return res.status(400).json({ success: false, error: 'Missing required parameters: subjectStream, zscore, district' });
     }
     const studentZScore = parseFloat(zscore);
     const sheetName = getSheetNameFromStream(subjectStream);
-    const range = sheetName;
+    const range = `${sheetName}`;
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range,
     });
-
     const rows = response.data.values;
     if (!rows || rows.length < 2) {
       return res.status(500).json({ success: false, error: 'Invalid sheet data' });
     }
-
-    const headers = rows[3] || rows[0];  // Headers are in row 4 (index 3) or fallback to first row
+    const headers = rows[3];
     const recommendations = [];
     const allQualifyingPrograms = [];
 
@@ -138,42 +141,4 @@ app.get('/api/recommendations', async (req, res) => {
     ).slice(0, 5);
 
     res.json({
-      success: true,
-      data: {
-        recommendations: recommendations.sort((a, b) => b.previousCutoff - a.previousCutoff),
-        nearbyRecommendations: nearbyRecommendations.sort((a, b) => b.previousCutoff - a.previousCutoff),
-        totalCount: recommendations.length + nearbyRecommendations.length
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching recommendations:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch recommendations: ' + error.message });
-  }
-});
-
-async function init() {
-  try {
-    if (!process.env.GOOGLE_PRIVATE_KEY || !process.env.GOOGLE_CLIENT_EMAIL || !spreadsheetId) {
-      throw new Error("Missing one or more required environment variables: GOOGLE_PRIVATE_KEY, GOOGLE_CLIENT_EMAIL, SHEET_ID");
-    }
-    // Note: Replace escaped newlines '\\n' with actual newlines '\n' in private key string
-    const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
-
-    const auth = new google.auth.JWT({
-      email: process.env.GOOGLE_CLIENT_EMAIL,
-      key: privateKey,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    sheets = google.sheets({ version: 'v4', auth });
-    console.log("✅ Connected to Google Sheets");
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 University Finder API running on port ${PORT}`);
-      console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-    });
-  } catch (err) {
-    console.error("❌ Failed to initialize:", err.message);
-    process.exit(1);
-  }
-}
-
-init();
+      success
