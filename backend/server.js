@@ -175,14 +175,18 @@ app.get('/api/recommendations', async (req, res) => {
 });
 
 
-// Serve frontend in production
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "frontend/dist")));
+const fs = require("fs");
+const frontendPath = path.join(__dirname, "../frontend/dist");
 
+if (fs.existsSync(frontendPath)) {
+  app.use(express.static(frontendPath));
   app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "frontend/dist", "index.html"));
+    res.sendFile(path.join(frontendPath, "index.html"));
   });
+} else {
+  console.warn("Frontend dist folder not found. Skipping static serving.");
 }
+
 
 
 
